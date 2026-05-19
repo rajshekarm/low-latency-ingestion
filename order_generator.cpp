@@ -4,9 +4,9 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
-#include <string>
 
 #pragma pack(push, 1)
 struct OrderMessage {
@@ -28,41 +28,83 @@ static uint64_t nowNs() {
     ).count();
 }
 
+static bool sendAll(int sock, const char* data, size_t size) {
+    size_t sentTotal = 0;
+
+    while (sentTotal < size) {
+        ssize_t sent = send(sock, data + sentTotal, size - sentTotal, 0);
+
+        if (sent <= 0) {
+            perror("send");
+            return false;
+        }
+
+        sentTotal += static_cast<size_t>(sent);
+    }
+
+    return true;
+}
+
 int main(int argc, char* argv[]) {
-    if (argc < 4) {
-        std::cerr << "Usage: ./order_generator <host> <port> <order_count>\n";
+    if (argc < 3) {
+        std::cerr << "Usage: ./order_generator_service <port> <order_count>\n";
         return 1;
     }
 
-    std::string host = argv[1];
-    int port = std::stoi(argv[2]);
-    uint64_t orderCount = std::stoull(argv[3]);
+    int port = std::stoi(argv[1]);
+    uint64_t orderCount = std::stoull(argv[2]);
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
+    int serverSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSock < 0) {
         perror("socket");
         return 1;
     }
 
+    int reuse = 1;
+    setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
+    //BIND SOCKET TO PORT
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(port);
+
+    if (bind(serverSock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) < 0) {
+        perror("bind");
+        close(serverSock);
+        return 1;
+    }
+
+    if (listen(serverSock, 1) < 0) {
+        perror("listen");
+        close(serverSock);
+        return 1;
+    }
+
+    std::cout << "Order Generator Service started\n";
+    std::cout << "Listening on port: " << port << "\n";
+    std::cout << "OrderMessage size: " << sizeof(OrderMessage) << " bytes\n";
+    std::cout << "Waiting for ingestion client...\n";
+
+    sockaddr_in clientAddr{};
+    socklen_t clientLen = sizeof(clientAddr);
+
+    int clientSock = accept(
+        serverSock,
+        reinterpret_cast<sockaddr*>(&clientAddr),
+        &clientLen
+    );
+
+    if (clientSock < 0) {
+        perror("accept");
+        close(serverSock);
+        return 1;
+    }
+
     int flag = 1;
-    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+    setsockopt(clientSock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
-    sockaddr_in server{};
-    server.sin_family = AF_INET;
-    server.sin_port = htons(port);
-
-    if (inet_pton(AF_INET, host.c_str(), &server.sin_addr) <= 0) {
-        std::cerr << "Invalid host\n";
-        return 1;
-    }
-
-    if (connect(sock, reinterpret_cast<sockaddr*>(&server), sizeof(server)) < 0) {
-        perror("connect");
-        return 1;
-    }
-
-    std::cout << "Connected to ingestion service\n";
-    std::cout << "OrderMessage size = " << sizeof(OrderMessage) << " bytes\n";
+    std::cout << "Ingestion client connected\n";
 
     auto start = std::chrono::steady_clock::now();
 
@@ -78,18 +120,12 @@ int main(int argc, char* argv[]) {
         order.timestampNs = nowNs();
 
         const char* data = reinterpret_cast<const char*>(&order);
-        size_t remaining = sizeof(OrderMessage);
 
-        while (remaining > 0) {
-            ssize_t sent = send(sock, data, remaining, 0);
-            if (sent <= 0) {
-                perror("send");
-                close(sock);
-                return 1;
-            }
-
-            data += sent;
-            remaining -= sent;
+        if (!sendAll(clientSock, data, sizeof(OrderMessage))) {
+            std::cerr << "Failed while sending order " << i << "\n";
+            close(clientSock);
+            close(serverSock);
+            return 1;
         }
     }
 
@@ -102,6 +138,8 @@ int main(int argc, char* argv[]) {
     std::cout << "Elapsed seconds: " << seconds << "\n";
     std::cout << "Throughput orders/sec: " << static_cast<uint64_t>(ordersPerSecond) << "\n";
 
-    close(sock);
+    close(clientSock);
+    close(serverSock);
+
     return 0;
 }
