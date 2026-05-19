@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -68,17 +69,31 @@ int main(int argc, char* argv[]) {
     int flag = 1;
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
-    sockaddr_in serverAddr{};
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(port);
+    addrinfo hints{};
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-    if (inet_pton(AF_INET, host.c_str(), &serverAddr.sin_addr) <= 0) {
-        std::cerr << "Invalid host\n";
+    addrinfo* result = nullptr;
+    std::string portString = std::to_string(port);
+
+    int lookupStatus = getaddrinfo(host.c_str(), portString.c_str(), &hints, &result);
+    if (lookupStatus != 0) {
+        std::cerr << "Host lookup failed: " << gai_strerror(lookupStatus) << "\n";
         close(sock);
         return 1;
     }
 
-    if (connect(sock, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) < 0) {
+    bool connected = false;
+    for (addrinfo* addr = result; addr != nullptr; addr = addr->ai_next) {
+        if (connect(sock, addr->ai_addr, static_cast<socklen_t>(addr->ai_addrlen)) == 0) {
+            connected = true;
+            break;
+        }
+    }
+
+    freeaddrinfo(result);
+
+    if (!connected) {
         perror("connect");
         close(sock);
         return 1;

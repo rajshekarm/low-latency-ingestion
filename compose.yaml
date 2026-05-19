@@ -1,0 +1,15 @@
+services:
+  order-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["./order_generator", "9000", "1000000"]
+
+  ingestion-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - order-generator
+    command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000"]
+

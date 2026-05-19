@@ -56,6 +56,69 @@ public class ingestion {
 
 So the Java section below explains how to build and run the current file, but it does not yet participate in the TCP benchmark.
 
+## Run With Docker Desktop On Windows
+
+If you are on Windows, Docker Desktop is the easiest way to run the C++ benchmark because the code already targets a Linux-style socket environment.
+
+### 1. Make sure Docker Desktop is running
+
+Check:
+
+```powershell
+docker --version
+docker compose version
+```
+
+### 2. Open a terminal in the project folder
+
+```powershell
+cd low-latency-ingestion
+```
+
+### 3. Build the Docker image
+
+```powershell
+docker compose build
+```
+
+This compiles both C++ programs inside a Linux container.
+
+### 4. Run the benchmark
+
+```powershell
+docker compose up
+```
+
+What happens:
+
+- `order-generator` starts first
+- it listens on port `9000`
+- `ingestion-client` connects using the Docker service name `order-generator`
+- the generator sends `1000000` orders
+- both containers print throughput and latency stats
+
+### 5. Stop and clean up
+
+If the containers are still running:
+
+```powershell
+docker compose down
+```
+
+### 6. Change the test size if needed
+
+The default command sends `1000000` orders. To change that, update the command in `compose.yaml`:
+
+```yaml
+command: ["./order_generator", "9000", "500000"]
+```
+
+Then rebuild and run again:
+
+```powershell
+docker compose up --build
+```
+
 ## Build And Run: C++
 
 These steps are for Linux or macOS, or for a POSIX-compatible environment where the socket headers are available.
@@ -163,4 +226,5 @@ Hello, Java 21!
 
 - On this Windows workspace, the C++ sources did not compile because POSIX headers were unavailable.
 - On this Windows workspace, Java was not installed, so the Java commands were documented but not executed here.
+- Docker Desktop is a good Windows-friendly option because it gives the C++ code a Linux runtime without needing a local port to Winsock.
 - If you want, the next useful improvement would be to implement the Java ingestion client so it can connect to `order_generator.cpp` and report the same latency metrics as the C++ version.
