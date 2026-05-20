@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["./order_generator", "9000", "1000000", GUI]
+    command: ["./order_generator", "9000", "100", "LOG"]
 
   ingestion-client:
     build:
@@ -11,5 +11,4 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - order-generator
-    command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000 GUI"]
-
+    command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000 LOG"]

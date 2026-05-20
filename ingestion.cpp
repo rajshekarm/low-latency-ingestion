@@ -77,13 +77,13 @@ static const char* colorForSide(uint8_t side) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./cpp_ingestion_client <host> <port> [GUI]\n";
+        std::cerr << "Usage: ./cpp_ingestion_client <host> <port> [LOG]\n";
         return 1;
     }
 
     std::string host = argv[1];
     int port = std::stoi(argv[2]);
-    bool guiEnabled = argc >= 4 && std::string(argv[3]) == "GUI";
+    bool logEnabled = argc >= 4 && std::string(argv[3]) == "LOG";
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
         uint64_t receiveTimeNs = nowNs();
         uint64_t latencyNs = receiveTimeNs - order.timestampNs;
 
-        if (guiEnabled) {
+        if (logEnabled) {
             std::cout << colorForSide(order.side)
                       << "RECV " << formatOrder(order)
                       << " latencyNs=" << latencyNs

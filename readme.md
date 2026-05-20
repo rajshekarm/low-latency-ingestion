@@ -30,9 +30,9 @@ The generator timestamps each message right before send. The ingestion client re
 - minimum latency in nanoseconds
 - maximum latency in nanoseconds
 
-Both C++ programs also support an optional `GUI` flag. When present, they print each sent or received order to the console UI. When omitted, they stay in benchmark mode and only print summary statistics.
+Both C++ programs also support an optional `LOG` flag. When present, they print each sent or received order to the console. When omitted, they stay in benchmark mode and only print summary statistics.
 
-In `GUI` mode, buy orders are printed in green and sell orders are printed in red.
+In `LOG` mode, buy orders are printed in green and sell orders are printed in red.
 
 ## Current Status
 
@@ -107,14 +107,14 @@ What happens:
 
 ### 5. Run with visible order-by-order logs
 
-To see the data flow live, change the commands in `compose.yaml` to include the `GUI` flag:
+To see the data flow live, change the commands in `compose.yaml` to include the `LOG` flag:
 
 ```yaml
-command: ["./order_generator", "9000", "1000000", "GUI"]
+command: ["./order_generator", "9000", "1000000", "LOG"]
 ```
 
 ```yaml
-command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000 GUI"]
+command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000 LOG"]
 ```
 
 Then run:
@@ -123,7 +123,7 @@ Then run:
 docker compose up --build
 ```
 
-In `GUI` mode:
+In `LOG` mode:
 
 - the generator prints each `SEND ...` record
 - the client prints each `RECV ...` record and its latency
@@ -181,10 +181,10 @@ Example:
 ./order_generator 9000 1000000
 ```
 
-With UI logging:
+With log output:
 
 ```bash
-./order_generator 9000 1000000 GUI
+./order_generator 9000 1000000 LOG
 ```
 
 Arguments:
@@ -198,10 +198,10 @@ Arguments:
 ./cpp_ingestion_client 127.0.0.1 9000
 ```
 
-With UI logging:
+With log output:
 
 ```bash
-./cpp_ingestion_client 127.0.0.1 9000 GUI
+./cpp_ingestion_client 127.0.0.1 9000 LOG
 ```
 
 Arguments:
@@ -229,7 +229,7 @@ Expected client output:
 - throughput
 - average/min/max latency
 
-When `GUI` is enabled, both programs also print each order as it flows through the system.
+When `LOG` is enabled, both programs also print each order as it flows through the system.
 
 ## Build And Run: Java
 
@@ -273,5 +273,5 @@ Hello, Java 21!
 - On this Windows workspace, the C++ sources did not compile because POSIX headers were unavailable.
 - On this Windows workspace, Java was not installed, so the Java commands were documented but not executed here.
 - Docker Desktop is a good Windows-friendly option because it gives the C++ code a Linux runtime without needing a local port to Winsock.
-- The `GUI` flag is intended for visibility and debugging. Leave it off for the most realistic throughput and latency measurements.
+- The `LOG` flag is intended for visibility and debugging. Leave it off for the most realistic throughput and latency measurements.
 - If you want, the next useful improvement would be to implement the Java ingestion client so it can connect to `order_generator.cpp` and report the same latency metrics as the C++ version.

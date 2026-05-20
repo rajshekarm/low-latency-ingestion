@@ -72,13 +72,13 @@ static const char* colorForSide(uint8_t side) {
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./order_generator <port> <order_count> [GUI]\n";
+        std::cerr << "Usage: ./order_generator <port> <order_count> [LOG]\n";
         return 1;
     }
 
     int port = std::stoi(argv[1]);
     uint64_t orderCount = std::stoull(argv[2]);
-    bool guiEnabled = argc >= 4 && std::string(argv[3]) == "GUI";
+    bool logEnabled = argc >= 4 && std::string(argv[3]) == "LOG";
 
     int serverSock = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSock < 0) {
@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
         order.priceMicros = 125'500'000;
         order.timestampNs = nowNs();
 
-        if (guiEnabled) {
+        if (logEnabled) {
             std::cout << colorForSide(order.side)
                       << "SEND " << formatOrder(order)
                       << "\033[0m\n";
