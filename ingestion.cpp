@@ -10,6 +10,8 @@
 #include <iostream>
 #include <string>
 
+#include "blotter_view.h"
+
 #pragma pack(push, 1)
 struct OrderMessage {
     uint64_t clOrdId;
@@ -63,27 +65,18 @@ static std::string formatOrder(const OrderMessage& order) {
         " timestampNs=" + std::to_string(order.timestampNs);
 }
 
-static const char* colorForSide(uint8_t side) {
-    if (side == 1) {
-        return "\033[32m"; // BUY
-    }
-
-    if (side == 2) {
-        return "\033[31m"; // SELL
-    }
-
-    return "\033[0m";
-}
-
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./cpp_ingestion_client <host> <port> [LOG]\n";
+        std::cerr << "Usage: ./cpp_ingestion_client <host> <port> [LOG|GUI]\n";
         return 1;
     }
 
     std::string host = argv[1];
     int port = std::stoi(argv[2]);
-    bool logEnabled = argc >= 4 && std::string(argv[3]) == "LOG";
+    std::string outputMode = argc >= 4 ? argv[3] : "";
+    bool logEnabled = outputMode == "LOG";
+    bool guiEnabled = outputMode == "GUI";
+    TerminalBlotter blotter("LOW LATENCY INGESTION CLIENT");
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -149,7 +142,7 @@ int main(int argc, char* argv[]) {
         uint64_t latencyNs = receiveTimeNs - order.timestampNs;
 
         if (logEnabled) {
-            std::cout << colorForSide(order.side)
+            std::cout << (order.side == 1 ? "\033[32m" : "\033[31m")
                       << "RECV " << formatOrder(order)
                       << " latencyNs=" << latencyNs
                       << "\033[0m\n";
@@ -164,12 +157,53 @@ int main(int argc, char* argv[]) {
         if (latencyNs > maxLatencyNs) {
             maxLatencyNs = latencyNs;
         }
+
+        if (guiEnabled) {
+            auto now = std::chrono::steady_clock::now();
+            double seconds = std::chrono::duration<double>(now - start).count();
+            uint64_t throughput = seconds > 0.0 ? static_cast<uint64_t>(receivedCount / seconds) : 0;
+            uint64_t avgLatency = totalLatencyNs / receivedCount;
+            blotter.pushRow({
+                order.clOrdId,
+                order.symbolId,
+                order.side,
+                order.orderType,
+                order.qty,
+                order.priceMicros,
+                order.timestampNs,
+                latencyNs,
+                true
+            });
+            blotter.updateStatus(
+                receivedCount,
+                seconds,
+                throughput,
+                avgLatency,
+                minLatencyNs,
+                maxLatencyNs,
+                true
+            );
+            blotter.render();
+        }
     }
 
     auto end = std::chrono::steady_clock::now();
 
     double seconds = std::chrono::duration<double>(end - start).count();
     double ordersPerSecond = receivedCount / seconds;
+
+    if (guiEnabled && receivedCount > 0) {
+        blotter.updateStatus(
+            receivedCount,
+            seconds,
+            static_cast<uint64_t>(ordersPerSecond),
+            totalLatencyNs / receivedCount,
+            minLatencyNs,
+            maxLatencyNs,
+            true
+        );
+        blotter.render();
+    }
 
     std::cout << "Received orders: " << receivedCount << "\n";
     std::cout << "Elapsed seconds: " << seconds << "\n";

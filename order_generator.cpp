@@ -9,6 +9,8 @@
 #include <iostream>
 #include <string>
 
+#include "blotter_view.h"
+
 #pragma pack(push, 1)
 struct OrderMessage {
     uint64_t clOrdId;
@@ -58,27 +60,18 @@ static std::string formatOrder(const OrderMessage& order) {
         " timestampNs=" + std::to_string(order.timestampNs);
 }
 
-static const char* colorForSide(uint8_t side) {
-    if (side == 1) {
-        return "\033[32m"; // BUY
-    }
-
-    if (side == 2) {
-        return "\033[31m"; // SELL
-    }
-
-    return "\033[0m";
-}
-
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./order_generator <port> <order_count> [LOG]\n";
+        std::cerr << "Usage: ./order_generator <port> <order_count> [LOG|GUI]\n";
         return 1;
     }
 
     int port = std::stoi(argv[1]);
     uint64_t orderCount = std::stoull(argv[2]);
-    bool logEnabled = argc >= 4 && std::string(argv[3]) == "LOG";
+    std::string outputMode = argc >= 4 ? argv[3] : "";
+    bool logEnabled = outputMode == "LOG";
+    bool guiEnabled = outputMode == "GUI";
+    TerminalBlotter blotter("LOW LATENCY ORDER GENERATOR");
 
     int serverSock = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSock < 0) {
@@ -146,9 +139,28 @@ int main(int argc, char* argv[]) {
         order.timestampNs = nowNs();
 
         if (logEnabled) {
-            std::cout << colorForSide(order.side)
+            std::cout << (order.side == 1 ? "\033[32m" : "\033[31m")
                       << "SEND " << formatOrder(order)
                       << "\033[0m\n";
+        }
+
+        if (guiEnabled) {
+            auto now = std::chrono::steady_clock::now();
+            double seconds = std::chrono::duration<double>(now - start).count();
+            uint64_t throughput = seconds > 0.0 ? static_cast<uint64_t>(i / seconds) : 0;
+            blotter.pushRow({
+                order.clOrdId,
+                order.symbolId,
+                order.side,
+                order.orderType,
+                order.qty,
+                order.priceMicros,
+                order.timestampNs,
+                0,
+                false
+            });
+            blotter.updateStatus(i, seconds, throughput, 0, 0, 0, false);
+            blotter.render();
         }
 
         const char* data = reinterpret_cast<const char*>(&order);
@@ -165,6 +177,11 @@ int main(int argc, char* argv[]) {
 
     double seconds = std::chrono::duration<double>(end - start).count();
     double ordersPerSecond = orderCount / seconds;
+
+    if (guiEnabled) {
+        blotter.updateStatus(orderCount, seconds, static_cast<uint64_t>(ordersPerSecond), 0, 0, 0, false);
+        blotter.render();
+    }
 
     std::cout << "Sent orders: " << orderCount << "\n";
     std::cout << "Elapsed seconds: " << seconds << "\n";
