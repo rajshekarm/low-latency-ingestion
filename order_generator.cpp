@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <string>
 
 #pragma pack(push, 1)
 struct OrderMessage {
@@ -45,14 +46,39 @@ static bool sendAll(int sock, const char* data, size_t size) {
     return true;
 }
 
+static std::string formatOrder(const OrderMessage& order) {
+    return
+        "clOrdId=" + std::to_string(order.clOrdId) +
+        " accountId=" + std::to_string(order.accountId) +
+        " symbolId=" + std::to_string(order.symbolId) +
+        " side=" + std::to_string(order.side) +
+        " orderType=" + std::to_string(order.orderType) +
+        " qty=" + std::to_string(order.qty) +
+        " priceMicros=" + std::to_string(order.priceMicros) +
+        " timestampNs=" + std::to_string(order.timestampNs);
+}
+
+static const char* colorForSide(uint8_t side) {
+    if (side == 1) {
+        return "\033[32m"; // BUY
+    }
+
+    if (side == 2) {
+        return "\033[31m"; // SELL
+    }
+
+    return "\033[0m";
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./order_generator_service <port> <order_count>\n";
+        std::cerr << "Usage: ./order_generator <port> <order_count> [GUI]\n";
         return 1;
     }
 
     int port = std::stoi(argv[1]);
     uint64_t orderCount = std::stoull(argv[2]);
+    bool guiEnabled = argc >= 4 && std::string(argv[3]) == "GUI";
 
     int serverSock = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSock < 0) {
@@ -118,6 +144,12 @@ int main(int argc, char* argv[]) {
         order.qty = 100 + static_cast<uint32_t>(i % 1000);
         order.priceMicros = 125'500'000;
         order.timestampNs = nowNs();
+
+        if (guiEnabled) {
+            std::cout << colorForSide(order.side)
+                      << "SEND " << formatOrder(order)
+                      << "\033[0m\n";
+        }
 
         const char* data = reinterpret_cast<const char*>(&order);
 

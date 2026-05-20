@@ -30,6 +30,10 @@ The generator timestamps each message right before send. The ingestion client re
 - minimum latency in nanoseconds
 - maximum latency in nanoseconds
 
+Both C++ programs also support an optional `GUI` flag. When present, they print each sent or received order to the console UI. When omitted, they stay in benchmark mode and only print summary statistics.
+
+In `GUI` mode, buy orders are printed in green and sell orders are printed in red.
+
 ## Current Status
 
 ### C++
@@ -73,6 +77,10 @@ docker compose version
 
 ```powershell
 cd low-latency-ingestion
+
+docker compose up order-generator
+
+docker compose up ingestion-client
 ```
 
 ### 3. Build the Docker image
@@ -97,7 +105,31 @@ What happens:
 - the generator sends `1000000` orders
 - both containers print throughput and latency stats
 
-### 5. Stop and clean up
+### 5. Run with visible order-by-order logs
+
+To see the data flow live, change the commands in `compose.yaml` to include the `GUI` flag:
+
+```yaml
+command: ["./order_generator", "9000", "1000000", "GUI"]
+```
+
+```yaml
+command: ["sh", "-c", "sleep 1 && ./cpp_ingestion_client order-generator 9000 GUI"]
+```
+
+Then run:
+
+```powershell
+docker compose up --build
+```
+
+In `GUI` mode:
+
+- the generator prints each `SEND ...` record
+- the client prints each `RECV ...` record and its latency
+- performance numbers will be slower because logging adds overhead
+
+### 6. Stop and clean up
 
 If the containers are still running:
 
@@ -105,7 +137,7 @@ If the containers are still running:
 docker compose down
 ```
 
-### 6. Change the test size if needed
+### 7. Change the test size if needed
 
 The default command sends `1000000` orders. To change that, update the command in `compose.yaml`:
 
@@ -149,6 +181,12 @@ Example:
 ./order_generator 9000 1000000
 ```
 
+With UI logging:
+
+```bash
+./order_generator 9000 1000000 GUI
+```
+
 Arguments:
 
 - `9000` = TCP port
@@ -158,6 +196,12 @@ Arguments:
 
 ```bash
 ./cpp_ingestion_client 127.0.0.1 9000
+```
+
+With UI logging:
+
+```bash
+./cpp_ingestion_client 127.0.0.1 9000 GUI
 ```
 
 Arguments:
@@ -184,6 +228,8 @@ Expected client output:
 - elapsed seconds
 - throughput
 - average/min/max latency
+
+When `GUI` is enabled, both programs also print each order as it flows through the system.
 
 ## Build And Run: Java
 
@@ -227,4 +273,5 @@ Hello, Java 21!
 - On this Windows workspace, the C++ sources did not compile because POSIX headers were unavailable.
 - On this Windows workspace, Java was not installed, so the Java commands were documented but not executed here.
 - Docker Desktop is a good Windows-friendly option because it gives the C++ code a Linux runtime without needing a local port to Winsock.
+- The `GUI` flag is intended for visibility and debugging. Leave it off for the most realistic throughput and latency measurements.
 - If you want, the next useful improvement would be to implement the Java ingestion client so it can connect to `order_generator.cpp` and report the same latency metrics as the C++ version.

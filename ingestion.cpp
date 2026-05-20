@@ -51,14 +51,39 @@ static uint64_t nowNs() {
     ).count();
 }
 
+static std::string formatOrder(const OrderMessage& order) {
+    return
+        "clOrdId=" + std::to_string(order.clOrdId) +
+        " accountId=" + std::to_string(order.accountId) +
+        " symbolId=" + std::to_string(order.symbolId) +
+        " side=" + std::to_string(order.side) +
+        " orderType=" + std::to_string(order.orderType) +
+        " qty=" + std::to_string(order.qty) +
+        " priceMicros=" + std::to_string(order.priceMicros) +
+        " timestampNs=" + std::to_string(order.timestampNs);
+}
+
+static const char* colorForSide(uint8_t side) {
+    if (side == 1) {
+        return "\033[32m"; // BUY
+    }
+
+    if (side == 2) {
+        return "\033[31m"; // SELL
+    }
+
+    return "\033[0m";
+}
+
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        std::cerr << "Usage: ./cpp_ingestion_client <host> <port>\n";
+        std::cerr << "Usage: ./cpp_ingestion_client <host> <port> [GUI]\n";
         return 1;
     }
 
     std::string host = argv[1];
     int port = std::stoi(argv[2]);
+    bool guiEnabled = argc >= 4 && std::string(argv[3]) == "GUI";
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
@@ -122,6 +147,13 @@ int main(int argc, char* argv[]) {
 
         uint64_t receiveTimeNs = nowNs();
         uint64_t latencyNs = receiveTimeNs - order.timestampNs;
+
+        if (guiEnabled) {
+            std::cout << colorForSide(order.side)
+                      << "RECV " << formatOrder(order)
+                      << " latencyNs=" << latencyNs
+                      << "\033[0m\n";
+        }
 
         totalLatencyNs += latencyNs;
 
